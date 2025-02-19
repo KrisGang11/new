@@ -345,10 +345,14 @@ def visualization():
 
         # 计算每日总消耗
         daily_consumption = df.groupby('date').agg(
-            reading_0100=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[0] if len(x) > 0 else None),
-            reading_2330=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[-1] if len(x) > 0 else None)
+        reading_0100=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[0] if len(x) > 0 else None),
+        reading_2330=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[-1] if len(x) > 0 else None)
         )
         daily_consumption['total_usage'] = daily_consumption['reading_2330'] - daily_consumption['reading_0100']
+
+# 确保索引是字符串格式
+        daily_consumption.index = daily_consumption.index.astype(str)
+
 
         # 生成折线图
         plt.figure(figsize=(8, 4))

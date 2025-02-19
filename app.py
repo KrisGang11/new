@@ -316,6 +316,11 @@ def history_query():
     return render_template('history_query.html', message="")
 
 
+import matplotlib.pyplot as plt
+import pandas as pd
+import io
+import base64
+
 @app.route('/visualization', methods=['GET', 'POST'])
 def visualization():
     if request.method == 'POST':
@@ -360,17 +365,15 @@ def visualization():
         line_chart.seek(0)
         line_chart_base64 = base64.b64encode(line_chart.getvalue()).decode()
 
-
-
         return render_template('visualization.html',
                                user_id=user_id,
                                meter_id=meter_id,
                                daily_consumption=daily_consumption.to_dict(orient='records'),
                                line_chart=line_chart_base64,
-                               bar_chart=bar_chart_base64,
                                message="")
 
     return render_template('visualization.html', message="")
+
 
 if __name__ == '__main__':
     app.run(debug=True)

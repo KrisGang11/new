@@ -4,6 +4,13 @@ import datetime
 import json
 import os
 
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import io
+import base64
+
+
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
 user_data = {}
@@ -307,6 +314,77 @@ def history_query():
         )
 
     return render_template('history_query.html', message="")
+
+
+@app.route('/visualization', methods=['GET', 'POST'])
+def visualization():
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        meter_id = request.form.get('meter_id')
+
+        if not user_id or not meter_id:
+            return render_template('visualization.html', message="User ID and Meter ID are required!")
+
+        json_data = load_json_data()
+
+        if user_id not in json_data or json_data[user_id]['user_info']['meter_id'] != meter_id:
+            return render_template('visualization.html', message="Invalid User ID or Meter ID")
+
+        # 获取用户的历史读数
+        meter_readings = json_data[user_id]['meter_readings']
+
+        # 转换为 Pandas DataFrame
+        df = pd.DataFrame(meter_readings)
+        df['meter_update_time'] = pd.to_datetime(df['meter_update_time'])
+        df['date'] = df['meter_update_time'].dt.date
+
+        # 计算每日总消耗
+        daily_consumption = df.groupby('date').agg(
+            reading_0100=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[0] if len(x) > 0 else None),
+            reading_2330=pd.NamedAgg(column='reading', aggfunc=lambda x: x.iloc[-1] if len(x) > 0 else None)
+        )
+        daily_consumption['total_usage'] = daily_consumption['reading_2330'] - daily_consumption['reading_0100']
+
+        # 生成折线图
+        plt.figure(figsize=(8, 4))
+        plt.plot(daily_consumption.index, daily_consumption['total_usage'], marker='o', linestyle='-', label="Total Consumption")
+        plt.xlabel("Date")
+        plt.ylabel("Electricity Consumption (kWh)")
+        plt.title("Daily Electricity Consumption Trend")
+        plt.legend()
+        plt.grid(True)
+
+        # 将折线图转换为 Base64 编码的图像
+        line_chart = io.BytesIO()
+        plt.savefig(line_chart, format='png')
+        line_chart.seek(0)
+        line_chart_base64 = base64.b64encode(line_chart.getvalue()).decode()
+
+        # 生成条形图
+        plt.figure(figsize=(8, 4))
+        plt.bar(daily_consumption.index, daily_consumption['reading_2330'], label="Reading at 23:30", alpha=0.6)
+        plt.bar(daily_consumption.index, daily_consumption['reading_0100'], label="Reading at 01:00", alpha=0.6)
+        plt.xlabel("Date")
+        plt.ylabel("Electricity Meter Reading (kWh)")
+        plt.title("Electricity Meter Readings (01:00 vs 23:30)")
+        plt.legend()
+        plt.grid(True)
+
+        # 将条形图转换为 Base64 编码的图像
+        bar_chart = io.BytesIO()
+        plt.savefig(bar_chart, format='png')
+        bar_chart.seek(0)
+        bar_chart_base64 = base64.b64encode(bar_chart.getvalue()).decode()
+
+        return render_template('visualization.html',
+                               user_id=user_id,
+                               meter_id=meter_id,
+                               daily_consumption=daily_consumption.to_dict(orient='records'),
+                               line_chart=line_chart_base64,
+                               bar_chart=bar_chart_base64,
+                               message="")
+
+    return render_template('visualization.html', message="")
 
 if __name__ == '__main__':
     app.run(debug=True)
